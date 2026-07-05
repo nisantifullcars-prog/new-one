@@ -119,6 +119,13 @@
   .search-bar{max-width:340px;margin-bottom:16px;display:block;}
   .empty-state{background:var(--paper);border:1px dashed var(--line);border-radius:var(--radius);padding:38px;text-align:center;color:var(--ink-soft);}
 
+  .card-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer;}
+  .chevron-btn{background:var(--steel-50);border:1px solid var(--line);border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:.7rem;color:var(--ink-soft);display:inline-flex;align-items:center;justify-content:center;transition:transform .18s ease, background .15s;flex-shrink:0;}
+  .chevron-btn:hover{background:var(--line);}
+  .chevron-btn.open{transform:rotate(180deg);}
+  .card-details{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
+  .card-details.hidden{display:none !important;}
+
   .admin-table{width:100%;border-collapse:collapse;background:var(--paper);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
   .admin-table th,.admin-table td{padding:9px 10px;font-size:.83rem;border-bottom:1px solid var(--line);text-align:right;}
   .admin-table th{background:var(--steel-50);font-family:'Rubik';font-weight:700;font-size:.74rem;color:var(--ink-soft);white-space:nowrap;}
@@ -412,6 +419,14 @@ function renderAll(){
   renderCurrentView();
 }
 
+/* ---------- card expand/collapse ---------- */
+let expandedCards = new Set();
+function toggleCard(id){
+  if(expandedCards.has(id)) expandedCards.delete(id);
+  else expandedCards.add(id);
+  renderCurrentView();
+}
+
 /* ---------- dashboard ---------- */
 function renderDashboard(){
   const garageCount = cars.filter(c=>c.status==='garage').length;
@@ -495,17 +510,20 @@ function renderGarage(){
 function garageCardHTML(car){
   const days = daysSince(car.entry_garage_date);
   const dis = adminUnlocked ? '' : 'disabled';
+  const expanded = expandedCards.has(car.id);
   const notesHTML = (car.notes_log||[]).map(n=>`<div class="note-item"><span class="note-date mono">${esc(formatDateHe(n.date))}</span><span>${esc(n.text)}</span></div>`).join('') || '<div class="note-empty">אין הערות עדיין</div>';
   return `
   <div class="car-card" data-card="${car.id}">
-    <div class="row" style="align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:0;">
+      <div class="card-summary" onclick="toggleCard('${car.id}')">
+        <button class="chevron-btn ${expanded?'open':''}" aria-label="הצג/הסתר פרטים" onclick="event.stopPropagation();toggleCard('${car.id}')">▼</button>
         <span class="plate mono">${esc(car.car_number)}</span>
         <span class="pill garage"><span class="dot"></span>במוסך · ${days} ימים</span>
         ${car.order_number ? `<span style="font-size:.78rem;color:var(--ink-soft);">הזמנה #${esc(car.order_number)}</span>` : ''}
       </div>
       <button class="btn btn-stamp" onclick="requireAdmin(()=>finishGarage('${car.id}'))">✓ סיים עבודה — העבר למלאי</button>
     </div>
+    <div class="card-details ${expanded ? '' : 'hidden'}">
     <div class="row">
       <div class="field"><label>מספר הזמנה</label><input class="mono" ${dis} value="${esc(car.order_number)}" oninput="quick('${car.id}','order_number',this.value)" onchange="saveCars()"></div>
       <div class="field"><label>דגם</label><input ${dis} value="${esc(car.model)}" oninput="quick('${car.id}','model',this.value)" onchange="saveCars()"></div>
@@ -528,6 +546,7 @@ function garageCardHTML(car){
     <div class="add-note-row">
       <input type="text" id="noteInput-${car.id}" placeholder="הוסף הערה חדשה...">
       <button class="btn btn-ghost" onclick="requireAdmin(()=>addNote('${car.id}'))">הוסף הערה</button>
+    </div>
     </div>
   </div>`;
 }
@@ -564,13 +583,17 @@ function renderInventory(){
 }
 function availableCardHTML(car){
   const dis = adminUnlocked ? '' : 'disabled';
+  const expanded = expandedCards.has(car.id);
   return `<div class="car-card" data-card="${car.id}">
-    <div class="row" style="align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:0;">
+      <div class="card-summary" onclick="toggleCard('${car.id}')">
+        <button class="chevron-btn ${expanded?'open':''}" aria-label="הצג/הסתר פרטים" onclick="event.stopPropagation();toggleCard('${car.id}')">▼</button>
         <span class="plate mono">${esc(car.car_number)}</span>
         <span class="pill inventory"><span class="dot"></span>במלאי מ-${esc(formatDateHe(car.entry_inventory_date))}</span>
+        ${car.model ? `<span style="font-size:.78rem;color:var(--ink-soft);">${esc(car.model)}</span>` : ''}
       </div>
     </div>
+    <div class="card-details ${expanded ? '' : 'hidden'}">
     <div class="row">
       <div class="field"><label>דגם</label><input ${dis} value="${esc(car.model)}" oninput="quick('${car.id}','model',this.value)" onchange="saveCars()"></div>
     </div>
@@ -588,18 +611,23 @@ function availableCardHTML(car){
       <div class="field"><label>איש מכירות</label><input id="sp-${car.id}" ${dis} placeholder="שם איש המכירות" value="${esc(car.salesperson)}"></div>
       <button class="btn btn-primary" onclick="requireAdmin(()=>markSold('${car.id}'))">סמן כנמכר</button>
     </div>
+    </div>
   </div>`;
 }
 function soldCardHTML(car){
   const dis = adminUnlocked ? '' : 'disabled';
+  const expanded = expandedCards.has(car.id);
   return `<div class="car-card" data-card="${car.id}">
-    <div class="row" style="align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:0;">
+      <div class="card-summary" onclick="toggleCard('${car.id}')">
+        <button class="chevron-btn ${expanded?'open':''}" aria-label="הצג/הסתר פרטים" onclick="event.stopPropagation();toggleCard('${car.id}')">▼</button>
         <span class="plate mono">${esc(car.car_number)}</span>
         <span class="pill sold"><span class="dot"></span>נמכר ב-${esc(formatDateHe(car.sold_date))}</span>
+        ${car.customer_name ? `<span style="font-size:.78rem;color:var(--ink-soft);">${esc(car.customer_name)}</span>` : ''}
       </div>
       <button class="btn btn-stamp" onclick="requireAdmin(()=>markDelivered('${car.id}'))">✓ נמסר ללקוח</button>
     </div>
+    <div class="card-details ${expanded ? '' : 'hidden'}">
     <div class="row">
       <div class="field"><label>איש מכירות</label><input ${dis} value="${esc(car.salesperson)}" oninput="quick('${car.id}','salesperson',this.value)" onchange="saveCars()"></div>
       <div class="field"><label>לקוח</label><span class="static-val">${esc(car.customer_name)||'—'}</span></div>
@@ -610,6 +638,7 @@ function soldCardHTML(car){
       <div class="field"><label>מספר הזמנה</label><input class="mono" id="on-${car.id}" ${dis} value="${esc(car.order_number)}" placeholder="מס' הזמנת רכש"></div>
       <div class="field" style="flex:2;"><label>מה צריך לעשות ברכב</label><input id="tk-${car.id}" ${dis} value="${esc(car.tasks)}" placeholder="למשל: טסט, פוליש, תיקון מזגן..."></div>
       <button class="btn btn-ghost" style="align-self:flex-end;" onclick="requireAdmin(()=>sendToGarage('${car.id}'))">🔧 שלח למוסך</button>
+    </div>
     </div>
   </div>`;
 }
@@ -660,14 +689,17 @@ function renderDelivered(){
   document.getElementById('deliveredList').innerHTML = list.length ? list.map(deliveredCardHTML).join('') : '<div class="empty-state">עדיין לא נמסרו רכבים.</div>';
 }
 function deliveredCardHTML(car){
+  const expanded = expandedCards.has(car.id);
   return `<div class="car-card">
-    <div class="row" style="align-items:center;justify-content:space-between;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:0;">
+      <div class="card-summary" onclick="toggleCard('${car.id}')">
+        <button class="chevron-btn ${expanded?'open':''}" aria-label="הצג/הסתר פרטים" onclick="event.stopPropagation();toggleCard('${car.id}')">▼</button>
         <span class="plate mono">${esc(car.car_number)}</span>
         <span class="pill delivered"><span class="dot"></span>נמסר ב-${esc(formatDateHe(car.delivered_date))}</span>
       </div>
       <span style="font-size:.8rem;color:var(--ink-soft);">איש מכירות: ${esc(car.salesperson)||'—'}</span>
     </div>
+    <div class="card-details ${expanded ? '' : 'hidden'}">
     <div class="row">
       <div class="field"><label>לקוח</label><span class="static-val">${esc(car.customer_name)||'—'}</span></div>
       <div class="field"><label>טלפון</label><span class="static-val mono">${esc(car.customer_phone)||'—'}</span></div>
@@ -677,6 +709,7 @@ function deliveredCardHTML(car){
       <div class="field"><label>כניסה למוסך</label><span class="static-val mono">${esc(formatDateHe(car.entry_garage_date))}</span></div>
       <div class="field"><label>כניסה למלאי</label><span class="static-val mono">${esc(formatDateHe(car.entry_inventory_date))}</span></div>
       <div class="field"><label>נמכר בתאריך</label><span class="static-val mono">${esc(formatDateHe(car.sold_date))}</span></div>
+    </div>
     </div>
   </div>`;
 }
